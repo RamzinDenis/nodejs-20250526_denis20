@@ -5,27 +5,33 @@ import {
   HttpException,
   HttpStatus,
 } from "@nestjs/common";
-import { BaseExceptionFilter } from "@nestjs/core";
+import { Response } from "express";
 import { appendFileSync } from "fs";
 
-export class HttpErrorFilter
-  extends BaseExceptionFilter
-  implements ExceptionFilter
-{
-  catch(exception: HttpException, host: ArgumentsHost) {
+@Catch()
+export class HttpErrorFilter implements ExceptionFilter {
+  catch(exception: Error, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
-    const message =
-      exception instanceof HttpException
-        ? exception.message
-        : "Internal server error";
+    const message = exception.message;
 
-    const date = new Date().toISOString();
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${status} - ${message}\n`;
+    const errorResponse = {
+      statusCode: status,
+      message: message,
+      timestamp: timestamp,
+    };
 
-    appendFileSync("errors.log", `[${date}] ${status} - ${message}`);
+    // Log the error
+    appendFileSync("errors.log", logMessage);
 
-    super.catch(exception, host);
+    // Send the formatted error response
+    response.status(status).json(errorResponse);
   }
 }
